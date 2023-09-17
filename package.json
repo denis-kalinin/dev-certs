@@ -1,20 +1,21 @@
 {
   "name": "@denis-kalinin/dev-certs",
   "version": "1.11.6",
-  "description": "For managing certificates when developing.",
+  "description": "Managing certificates on nodejs http server",
   "main": "./lib/main.js",
   "scripts": {
     "build": "rimraf lib && concurrently \"tsc -p tsconfig.json\"",
-    "compile": "tsc -p tsconfig.json",
     "cli": "node lib/cli.js",
     "lint": "office-addin-lint check",
     "lint:fix": "office-addin-lint fix",
     "prettier": "office-addin-lint prettier",
     "start": "rimraf lib && concurrently \"npm run watch\"",
     "test": "mocha -r ts-node/register test/**/*.ts",
-    "watch": "tsc -p tsconfig.json -w"
+    "watch": "tsc -p tsconfig.json -w",
+    "version": "npm run build",
+    "postversion": "git push origin master && git push origin v${npm_package_version}"
   },
-  "author": "Office Dev",
+  "author": "Denis Kalinin",
   "license": "MIT",
   "bin": {
     "@denis-kalinin/dev-certs": "./cli.js"
@@ -54,11 +55,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/OfficeDev/Office-Addin-Scripts"
+    "url": "https://github.com/denis-kalinin/dev-certs"
   },
   "bugs": {
-    "url": "https://github.com/OfficeDev/Office-Addin-Scripts/issues"
-  },
-  "prettier": "office-addin-prettier-config",
-  "gitHead": "dffbcd4d1397534105b98fb13ba0fb1c3aba2dea"
+    "url": "https://github.com/denis-kalinin/dev-certs/issues"
+  }
 }
