@@ -1,6 +1,6 @@
 {
   "name": "@denis-kalinin/dev-certs",
-  "version": "1.11.9",
+  "version": "1.11.10",
   "description": "Managing certificates on nodejs http server",
   "main": "./lib/main.js",
   "engines": {
