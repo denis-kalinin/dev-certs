@@ -42,6 +42,22 @@
         "request": "launch",
         "program": "${workspaceFolder}/lib/cli.js",
         "args": ["verify"]
-      }
+      },
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "Debug Live Test",
+        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/ts-mocha",
+        "runtimeArgs": [
+          "-p",
+          "test/test-tsconfig.json",
+          "test/livetest.ts"
+        ],
+        "internalConsoleOptions": "openOnSessionStart",
+        "env": {
+          "DEBUG_MODE": "true",
+        }
+
+      },
   ]
 }

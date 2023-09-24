@@ -4,16 +4,18 @@
 import { execSync } from "child_process";
 import * as path from "path";
 import * as defaults from "./defaults";
-import { CACertInfo, CertInfo } from "./defaults";
 import { generateCertificates } from "./generate";
 import { deleteCertificateFiles, uninstallCaCertificate } from "./uninstall";
-import { isCaCertificateInstalled, verifyCertificates } from "./verify";
+import { isCaCertificateInstalled, isCaInDir, verifyCertificates } from "./verify";
 import { usageDataObject } from "./defaults";
 import { ExpectedError } from "office-addin-usage-data";
 
 /* global process, console, __dirname */
 
-function getInstallCommand(caCertificatePath: string, machine: boolean = false): string {
+function getInstallCommand(
+  caCertificatePath: string,
+  machine: boolean = false
+): string {
   switch (process.platform) {
     case "win32": {
       const script = path.resolve(__dirname, "..\\scripts\\install.ps1");
@@ -21,41 +23,48 @@ function getInstallCommand(caCertificatePath: string, machine: boolean = false):
         machine ? "LocalMachine" : "CurrentUser"
       } "${caCertificatePath}"`;
     }
-    case "darwin": // macOS
+    case "darwin": {
       const prefix = machine ? "sudo " : "";
-      const keychainFile = machine ? "/Library/Keychains/System.keychain" : "~/Library/Keychains/login.keychain-db";
+      const keychainFile = machine
+        ? "/Library/Keychains/System.keychain"
+        : "~/Library/Keychains/login.keychain-db";
       return `${prefix}security add-trusted-cert -d -r trustRoot -k ${keychainFile} '${caCertificatePath}'`;
-    case "linux":
+    }
+    case "linux": {
       const script = path.resolve(__dirname, "../scripts/install_linux.sh");
       return `sudo sh '${script}' '${caCertificatePath}'`;
+    }
     default:
       throw new ExpectedError(`Platform not supported: ${process.platform}`);
   }
 }
 
-export async function ensureCertificatesAreInstalled(
+export async function ensureCertificatesAreInstalled (
   machine: boolean = false,
-  pkiConfig?: { ca?: CACertInfo; cert?: CertInfo }
+  pkiConfig: Required<defaults.PKIConfig>
 ) {
   try {
-    const areCertificatesValid = verifyCertificates();
-
-    if (areCertificatesValid) {
+    let areCertificatesValid = verifyCertificates(pkiConfig.cert.fileName!);
+    let isCaInstalled = isCaCertificateInstalled();
+    let isCaInDirectory = isCaInDir();
+    if(!isCaInDirectory) isCaInstalled = false;
+    if (areCertificatesValid && isCaInstalled) {
+      const localPath = defaults.getLocalPath(pkiConfig.cert.fileName!);
       console.log(
-        `You already have trusted access to https://localhost.\nCertificate: ${defaults.localhostCertificatePath}\nKey: ${defaults.localhostKeyPath}`
+        `You already have trusted access to https://localhost.\nCertificate: ${localPath}.crt\nKey: ${localPath}.key`
       );
-    } else {
+      usageDataObject.reportSuccess("ensureCertificatesAreInstalled()");
+      return;
+    }
+    if (!isCaInstalled) {
       await uninstallCaCertificate(false, false);
       deleteCertificateFiles(defaults.certificateDirectory);
-      await generateCertificates(
-        defaults.caCertificatePath,
-        defaults.localhostCertificatePath,
-        defaults.localhostKeyPath,
-        pkiConfig
-      );
+      await generateCertificates(pkiConfig);
       await installCaCertificate(defaults.caCertificatePath, machine);
+    } else if (!areCertificatesValid) {
+      deleteCertificateFiles(defaults.certificateDirectory, pkiConfig.cert.fileName);
+      await generateCertificates(pkiConfig);//TODO without CA
     }
-
     usageDataObject.reportSuccess("ensureCertificatesAreInstalled()");
   } catch (err: any) {
     usageDataObject.reportException("ensureCertificatesAreInstalled()", err);
@@ -70,7 +79,9 @@ export async function installCaCertificate(
   const command = getInstallCommand(caCertificatePath, machine);
 
   try {
-    console.log(`Installing CA certificate "Developer CA for Microsoft Office Add-ins"...`);
+    console.log(
+      `Installing CA certificate "Developer CA for Microsoft Office Add-ins"...`
+    );
     // If the certificate is already installed by another instance skip it.
     if (!isCaCertificateInstalled()) {
       execSync(command, { stdio: "pipe" });
@@ -79,6 +90,8 @@ export async function installCaCertificate(
       `You now have trusted access to https://localhost.\nCertificate: ${defaults.localhostCertificatePath}\nKey: ${defaults.localhostKeyPath}`
     );
   } catch (error: any) {
-    throw new Error(`Unable to install the CA certificate. ${error.stderr.toString()}`);
+    throw new Error(
+      `Unable to install the CA certificate. ${error.stderr.toString()}`
+    );
   }
 }

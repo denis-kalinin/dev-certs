@@ -2,10 +2,9 @@
     "compilerOptions": {
         "alwaysStrict": false,
         "declaration": true,
-        "module": "commonjs",
+        "module": "CommonJS",
         "moduleResolution": "node",
         "newLine": "lf",
-        "noImplicitUseStrict": true,
         "outDir": "lib",
         "skipLibCheck": true,
         "sourceMap": true,
@@ -13,13 +12,14 @@
         "target": "es6",
         "types": [
             "node"
-        ]
+        ],
+        "noImplicitUseStrict": true
     },
     "include": [
         "src/**/*",
     ],
     "exclude": [
         "node_modules",
-        "lib"
+        "lib",
     ]
 }

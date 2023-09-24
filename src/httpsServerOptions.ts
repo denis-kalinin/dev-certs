@@ -3,7 +3,6 @@
 
 import * as fs from "fs";
 import * as defaults from "./defaults";
-import { CACertInfo, CertInfo } from "./defaults";
 import { ensureCertificatesAreInstalled } from "./install";
 
 /* global Buffer */
@@ -14,11 +13,21 @@ interface IHttpsServerOptions {
   key: Buffer;
 }
 
-export async function getHttpsServerOptions(pkiConfig?: {
-  ca?: CACertInfo;
-  cert?: CertInfo;
-}): Promise<IHttpsServerOptions> {
-  await ensureCertificatesAreInstalled(false, pkiConfig);
+export async function getHttpsServerOptions(
+  pkiConfig?: defaults.PKIConfig
+): Promise<IHttpsServerOptions> {
+  const defaultPkiConfig = defaults.getPkiConfig();
+  const fullPkiConfig: Required<defaults.PKIConfig> = {
+    ca: {
+      ...defaultPkiConfig.ca,
+      ...pkiConfig?.ca
+    },
+    cert: {
+      ...defaultPkiConfig.cert,
+      ...pkiConfig?.cert
+    }
+  };
+  await ensureCertificatesAreInstalled(false, fullPkiConfig);
 
   const httpsServerOptions = {} as IHttpsServerOptions;
   try {
@@ -28,13 +37,17 @@ export async function getHttpsServerOptions(pkiConfig?: {
   }
 
   try {
-    httpsServerOptions.cert = fs.readFileSync(defaults.localhostCertificatePath);
+    httpsServerOptions.cert = fs.readFileSync(
+      `${defaults.getLocalPath(fullPkiConfig.cert.fileName!)}.crt`
+    );
   } catch (err) {
     throw new Error(`Unable to read the certificate file.\n${err}`);
   }
 
   try {
-    httpsServerOptions.key = fs.readFileSync(defaults.localhostKeyPath);
+    httpsServerOptions.key = fs.readFileSync(
+      `${defaults.getLocalPath(fullPkiConfig.cert.fileName!)}.key`
+    );
   } catch (err) {
     throw new Error(`Unable to read the certificate key.\n${err}`);
   }

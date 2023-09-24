@@ -10,15 +10,21 @@ import { usageDataObject } from "./defaults";
 import { ExpectedError } from "office-addin-usage-data";
 
 // On win32 this is a unique hash used with PowerShell command to reliably delineate command output
-export const outputMarker = process.platform === "win32" ? `[${crypto.createHash("md5").update(`${defaults.certificateName}${defaults.caCertificatePath}`).digest("hex")}]` : "";
+export const outputMarker =
+  process.platform === "win32"
+    ? `[${crypto
+        .createHash("md5")
+        .update(`${defaults.certificateName}${defaults.caCertificatePath}`)
+        .digest("hex")}]`
+    : "";
 
 /* global process, Buffer, __dirname */
 
 function getVerifyCommand(returnInvalidCertificate: boolean): string {
   switch (process.platform) {
     case "win32": {
-      const script = path.resolve(__dirname, "..\\scripts\\verify.ps1");
-      const defaultCommand = `powershell -ExecutionPolicy Bypass -File "${script}" -CaCertificateName "${defaults.certificateName}" -CaCertificatePath "${defaults.caCertificatePath}" -LocalhostCertificatePath "${defaults.localhostCertificatePath}" -OutputMarker "${outputMarker}"`;
+      const script = path.resolve(__dirname, "..\\scripts\\verify_ca.ps1");
+      const defaultCommand = `powershell -ExecutionPolicy Bypass -File "${script}" -CaCertificateName "${defaults.certificateName}" -CaCertificatePath "${defaults.caCertificatePath}" -OutputMarker "${outputMarker}"`;
       if (returnInvalidCertificate) {
         return defaultCommand + ` -ReturnInvalidCertificate`;
       }
@@ -26,25 +32,32 @@ function getVerifyCommand(returnInvalidCertificate: boolean): string {
     }
     case "darwin": {
       // macOS
-      const script = path.resolve(__dirname, "../scripts/verify.sh");
+      const script = path.resolve(__dirname, "../scripts/verify_ca.sh");
       return `sh '${script}' '${defaults.certificateName}'`;
     }
-    case "linux":
-      const script = path.resolve(__dirname, "../scripts/verify_linux.sh");
+    case "linux": {
+      const script = path.resolve(__dirname, "../scripts/verify_ca_linux.sh");
       return `sh '${script}' '${defaults.certificateName}'`;
+    }
     default:
       throw new ExpectedError(`Platform not supported: ${process.platform}`);
   }
 }
 
-export function isCaCertificateInstalled(returnInvalidCertificate: boolean = false): boolean {
+export function isCaCertificateInstalled(
+  returnInvalidCertificate: boolean = false
+): boolean {
+  
   const command = getVerifyCommand(returnInvalidCertificate);
-
   try {
     const output = execSync(command, { stdio: "pipe" }).toString();
     if (process.platform === "win32") {
       // Remove any PowerShell output that preceeds invoking the actual certificate check command
-      return output.slice(output.lastIndexOf(outputMarker) + outputMarker.length).trim().length !== 0;
+      return (
+        output
+          .slice(output.lastIndexOf(outputMarker) + outputMarker.length)
+          .trim().length !== 0
+      );
     }
     // script files return empty string if the certificate not found or expired
     if (output.length !== 0) {
@@ -57,9 +70,29 @@ export function isCaCertificateInstalled(returnInvalidCertificate: boolean = fal
   return false;
 }
 
-function validateCertificateAndKey(certificatePath: string, keyPath: string) {
-  let certificate: string = "";
-  let key: string = "";
+export function isCaInDir(): boolean {
+      //check CA has a valid key
+      const caCertPath = path.join(
+        defaults.certificateDirectory,
+        defaults.caCertificateFileName
+      );
+      const caCertKey = path.join(
+        defaults.certificateDirectory,
+        defaults.caKeyFileName
+      );
+      try{ 
+        validateCertificateAndKey(caCertPath, caCertKey);
+        return true;
+      } catch (err) {
+        return false;
+      }
+}
+
+export function validateCertificateAndKey(
+  certificatePath: string, keyPath: string
+): { certificate: string; key: string } {
+  let certificate: string;
+  let key: string;
 
   try {
     certificate = fs.readFileSync(certificatePath).toString();
@@ -86,22 +119,42 @@ function validateCertificateAndKey(certificatePath: string, keyPath: string) {
   } catch (err) {
     throw new Error(`The certificate key is not valid.\n${err}`);
   }
+  return { certificate, key }
 }
 
-export function verifyCertificates(
-  certificatePath: string = defaults.localhostCertificatePath,
-  keyPath: string = defaults.localhostKeyPath
-): boolean {
+function validateIssuer(certificate: string){
+  const caPath = path.join(
+    defaults.certificateDirectory,
+    defaults.caCertificateFileName
+  );
+  const caCert = new crypto.X509Certificate(fs.readFileSync(caPath));
+  const now = new Date();
+  if (now < new Date(caCert.validFrom))
+    throw new Error("CA certificate is not YET valid.");
+  if (now > new Date(caCert.validTo))
+    throw new Error("CA certificate is not ALREADY valid");
+  const localcert = new crypto.X509Certificate(certificate);
+  if (now < new Date(localcert.validFrom))
+    throw new Error(`Cert for ${localcert.subject} is not YET valid.`);
+  if (now > new Date(localcert.validTo))
+    throw new Error(`Cert for ${localcert.subject} is not ALREADY valid.`);
+  const isCertChainOk = localcert.checkIssued(caCert);
+  if (!isCertChainOk) throw new Error("Certificate chain is wrong.");
+}
+
+export function verifyCertificates( filename: string ): boolean {
+  const localPath = defaults.getLocalPath(filename);
+
   try {
     let isCertificateValid: boolean = true;
     try {
-      validateCertificateAndKey(certificatePath, keyPath);
+      const certKey = validateCertificateAndKey(`${localPath}.crt`, `${localPath}.key`);
+      validateIssuer(certKey.certificate);
     } catch (err) {
       isCertificateValid = false;
     }
-    let output = isCertificateValid && isCaCertificateInstalled();
     usageDataObject.reportSuccess("verifyCertificates()");
-    return output;
+    return isCertificateValid;
   } catch (err: any) {
     usageDataObject.reportException("verifyCertificates()", err);
     throw err;

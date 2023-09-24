@@ -18,7 +18,7 @@ export async function install(command: commander.Command) {
     const days = parseDays(command.days);
     const domains = parseDomains(command.domains);
 
-    const pkiConfig: { ca?: defaults.CACertInfo; cert?: defaults.CertInfo } = {
+    const pkiConfig: Required<defaults.PKIConfig> = {
       ca: {
         validityDays: days,
       },
@@ -68,6 +68,21 @@ function parseDomains(optionValue: any): string[] | undefined {
   }
 }
 
+function parseFilename(optionValue: any): string {
+  switch (typeof optionValue) {
+    case "string": {
+      if( !optionValue ) return optionValue;
+      throw new Error("the empty string");
+    }
+    case "undefined": {
+      throw new Error("--filename is a required attribute")
+    }
+    default: {
+      throw new Error("--filename should have value.");
+    }
+  }
+}
+
 export async function uninstall(command: commander.Command) {
   try {
     await uninstallCaCertificate(command.machine);
@@ -81,7 +96,8 @@ export async function uninstall(command: commander.Command) {
 
 export async function verify(command: commander.Command /* eslint-disable-line @typescript-eslint/no-unused-vars */) {
   try {
-    if (await verifyCertificates()) {
+    const filename = parseFilename(command.filename);
+    if (await verifyCertificates(filename)) {
       console.log(
         `You have trusted access to https://localhost.\nCertificate: ${defaults.localhostCertificatePath}\nKey: ${defaults.localhostKeyPath}`
       );
