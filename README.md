@@ -72,7 +72,15 @@ Uninstall the CA certificate for all users. You must be an Administrator.
 ```js
 var https = require('https')
 var devCerts = require("@denis-kalinin/dev-certs");
-var options =  await devCerts.getHttpsServerOptions(['my.localtest.me', 'localhost']);
+var options =  await devCerts.getHttpsServerOptions({
+  cert:{
+    domains: ['my.localtest.me', 'localhost'], //certificate's alter names
+    fileName: 'localtest' //creates files localtest.crt and localtest.key, useful when using dev-certs in many projects
+  },
+  ca: {
+    validityDays: 90
+  }
+});
 
 var server = https.createServer(options, function (req, res) {
   res.end('This is servered over HTTPS')
