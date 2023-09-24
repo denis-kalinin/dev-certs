@@ -17,7 +17,7 @@
     "livetest": "ts-mocha test/livetest.ts",
     "watch": "tsc -p tsconfig.json -w",
     "version": "npm run build",
-    "postversion": "git push origin master && git push origin v%npm_package_version% || git push origin v${npm_package_version}",
+    "postversion": "git push origin master && node git-push-tag.mjs origin",
     "requirements-check": "node check-node-version.mjs",
     "postinstall": "npm run requirements-check"
   },
